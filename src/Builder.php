@@ -131,15 +131,16 @@ class Builder extends \Illuminate\Database\Eloquent\Builder
      * @param array $columns
      * @param string $pageName
      * @param null $page
+     * @param null $total
      * @return LengthAwarePaginatorInterface
      */
-    public function paginate($perPage = null, $columns = ['*'], $pageName = 'page', $page = null)
+    public function paginate($perPage = null, $columns = ['*'], $pageName = 'page', $page = null, $total = null)
     {
         if ($this->isSimple()) {
-            return $this->paginateSimple($perPage, $columns, $pageName, $page);
+            return $this->paginateSimple($perPage, $columns, $pageName, $page, $total);
         }
 
-        return parent::paginate($perPage, $columns, $pageName, $page);
+        return parent::paginate($perPage, $columns, $pageName, $page, $total);
     }
 
     /**
@@ -274,21 +275,22 @@ class Builder extends \Illuminate\Database\Eloquent\Builder
      *
      * @throws InvalidArgumentException
      */
-    public function paginateSimple($perPage = null, $columns = ['*'], $pageName = 'page', $page = null)
+    public function paginateSimple($perPage = null, $columns = ['*'], $pageName = 'page', $page = null, $total = null)
     {
         $page = $page ?: Paginator::resolveCurrentPage($pageName);
 
-        $perPage = $perPage ?: $this->model->getPerPage();
+        $total = value($total) ?? $this->toBase()->getCountForPagination();
 
-        $query = $this->toBase();
-
-        $total = $query->getCountForPagination();
+        $perPage = ($perPage instanceof Closure
+            ? $perPage($total)
+            : $perPage
+        ) ?: $this->model->getPerPage();
 
         $results = $total
             ? $this->forPage($page, $perPage)->getSimple($columns)
             : $this->model->newCollection();
 
-        return new LengthAwarePaginator($results, $total, $perPage, $page, [
+        return $this->paginator($results, $total, $perPage, $page, [
             'path' => Paginator::resolveCurrentPath(),
             'pageName' => $pageName,
         ]);
